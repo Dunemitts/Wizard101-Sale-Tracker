@@ -81,7 +81,7 @@ layout = [
     [sg.Text(b_line, enable_events=True, font=font, key=f'-LINK-{index}-')]
     for index, b_line in enumerate(b_array.splitlines(), start=0)
 ] + [
-    [sg.Checkbox('Opt-in', key='Opt-in')]
+    [sg.Checkbox('Opt-in for startup launch', key='Opt-in')]
 ]
 driver.close()
 

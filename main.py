@@ -24,18 +24,20 @@ soup = BeautifulSoup(base_html, features='lxml')
 b_array = []
 link_storage = []
 numbered_date_pattern = r'\b\d{1,2}/\d{1,2}\b' #expiration date check setup
-worded_date_pattern = r'[A-Z][a-z]+, (July \d{1,2}(st|nd|rd|th))'
+worded_date_pattern = r'[A-Z][a-z]+, (July \d{1,2}(st|nd|rd|th))' #THID DEFAULTS MONTH TO JULY FIX IT
 unique_dates = {}
 print("Setup Done!")
+
 for news in soup.find_all('div', {'class': 'contentbox'}): #grab info from one news box
     for title in news.find_all('b'):
         if '%' in title.get_text() or 'Bundle' in title.get_text() or '6 Month' in title.get_text(): #filtering deals
             if ('/' in news.find('p').get_text()): #finding expiration dates
                 deals_text = news.find('p').get_text()
-                print(deals_text)
+                print(title.get_text())
                 dates_found = re.findall(numbered_date_pattern, deals_text)
                 unique_dates = set(dates_found)
             try: #finds if link is available
+                print("link found!")
                 link = news.find('a').get('href')
                 link_storage.append(link)
                 specific_html = urllib.request.urlopen(f'https://www.wizard101.com{link}') #opening the url for reading
@@ -47,15 +49,23 @@ for news in soup.find_all('div', {'class': 'contentbox'}): #grab info from one n
                                 paragraph_text = para.get_text()
                                 dates_found = re.findall(worded_date_pattern, paragraph_text)
                                 unique_dates = set(dates_found)
-                                print(unique_dates)
             except:
-                link_storage.append("")
-            '''if unique_dates < date: fix this shit
-                unique_dates = "Expired"'''
-            b_array.append('Date: '+news.find('td', {'class': 'contentbox_headermiddle'}).get_text()+(f' ({unique_dates}) ')+ 'Deal: '+title.get_text()) 
+                pass
+            for date_str in unique_dates: #process the unique dates and exclude expired deals
+                date_str += f'/{date_pure.year}'
+                print(date_str)
+                expiration_date = datetime.strptime(date_str, "%m/%d/%Y")
+                print(expiration_date)
+                if (expiration_date) >= datetime.today():
+                    print("comparing dates")
+                    print(datetime.today())
+                    expiration_date = datetime.strftime(expiration_date, '%B %d, %Y')
+                    b_array.append('Date: '+news.find('td', {'class': 'contentbox_headermiddle'}).get_text()+(f' ({expiration_date}) ')+ 'Deal: '+title.get_text()) 
+
 b_array = '\n'.join(b_array) #formatting
 
 if not b_array: #if no sales are found, the window isn't opened
+    print("no sales found, exiting")
     exit()
 
 

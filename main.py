@@ -30,7 +30,7 @@ print("Setup Done!")
 
 for news in soup.find_all('div', {'class': 'contentbox'}): #grab info from one news box
     for title in news.find_all('b'):
-        if '%' in title.get_text() or 'Bundle' in title.get_text() or '6 Month' in title.get_text(): #filtering deals
+        if '%' in title.get_text() or 'Bundle' in title.get_text() or '6 Month' in title.get_text() or 'Free' in title.get_text(): #filtering deals
             if ('/' in news.find('p').get_text()): #finding expiration dates
                 deals_text = news.find('p').get_text()
                 print(title.get_text())
@@ -52,14 +52,17 @@ for news in soup.find_all('div', {'class': 'contentbox'}): #grab info from one n
             except:
                 pass
             for date_str in unique_dates: #process the unique dates and exclude expired deals
-                date_str += f'/{date_pure.year}'
+                if date_str.month == 1 and date_pure.month == 12: #adds current year at the end of expire date, could be catastrophic when new year comes along if this doesn't work
+                    date_str += f'/{date_pure.year + 1}' 
+                else:
+                    date_str += f'/{date_pure.year}' 
                 print(date_str)
                 expiration_date = datetime.strptime(date_str, "%m/%d/%Y")
-                print(expiration_date)
                 if (expiration_date) >= datetime.today():
+                    print(expiration_date)
                     print("comparing dates")
                     print(datetime.today())
-                    expiration_date = datetime.strftime(expiration_date, '%B %d, %Y')
+                    expiration_date = datetime.strftime(expiration_date, '%B %d %Y')
                     b_array.append('Date: '+news.find('td', {'class': 'contentbox_headermiddle'}).get_text()+(f' ({expiration_date}) ')+ 'Deal: '+title.get_text()) 
 
 b_array = '\n'.join(b_array) #formatting

@@ -24,8 +24,8 @@ soup = BeautifulSoup(base_html, features='lxml')
 b_array = []
 link_storage = []
 numbered_date_pattern = r'\b\d{1,2}/\d{1,2}\b' #expiration date check setup
-worded_date_pattern = r'[A-Z][a-z]+, (July \d{1,2}(st|nd|rd|th))' #THID DEFAULTS MONTH TO JULY FIX IT
-unique_dates = {}
+worded_date_pattern = r'[A-Z][a-z]+, (January|February|March|April|May|June|July|August|September|October|November|December) \d{1,2}'
+scanned_expire_dates = {}
 print("Setup Done!")
 
 for news in soup.find_all('div', {'class': 'contentbox'}): #grab info from one news box
@@ -35,26 +35,29 @@ for news in soup.find_all('div', {'class': 'contentbox'}): #grab info from one n
                 deals_text = news.find('p').get_text()
                 print(title.get_text())
                 dates_found = re.findall(numbered_date_pattern, deals_text)
-                unique_dates = set(dates_found)
+                scanned_expire_dates = set(dates_found)
             try: #finds if link is available
                 print("link found!")
                 link = news.find('a').get('href')
                 link_storage.append(link)
                 specific_html = urllib.request.urlopen(f'https://www.wizard101.com{link}') #opening the url for reading
                 htmlParse = BeautifulSoup(specific_html, 'specific_html.parser') #parse specific_html
-                if unique_dates == None or unique_dates == '':
+                if scanned_expire_dates == None or scanned_expire_dates == '':
                     for content_page in htmlParse.find_all('div', {'class': 'emptybox_text boxsizingborderbox'}):
                         for para in content_page.find_all('div'):
                             if para:
                                 paragraph_text = para.get_text()
                                 dates_found = re.findall(worded_date_pattern, paragraph_text)
-                                unique_dates = set(dates_found)
+                                scanned_expire_dates = set(dates_found)
             except:
                 pass
-            for date_str in unique_dates: #process the unique dates and exclude expired deals
+            for date_str in scanned_expire_dates: #process the scanned dates and exclude expired deals
+                date_str = datetime.strptime(date_str, "%m/%d")
                 if date_str.month == 1 and date_pure.month == 12: #adds current year at the end of expire date, could be catastrophic when new year comes along if this doesn't work
+                    date_str = datetime.strftime(date_str, "%m/%d")
                     date_str += f'/{date_pure.year + 1}' 
                 else:
+                    date_str = datetime.strftime(date_str, "%m/%d")
                     date_str += f'/{date_pure.year}' 
                 print(date_str)
                 expiration_date = datetime.strptime(date_str, "%m/%d/%Y")
@@ -71,21 +74,20 @@ if not b_array: #if no sales are found, the window isn't opened
     print("no sales found, exiting")
     exit()
 
-
 # Initialize the configuration parser
 config = configparser.ConfigParser()
 
-# Load the configuration file if it exists
-config_file_path = 'config.ini'
-if os.path.exists(config_file_path):
-    config.read(config_file_path)
-
-# Check if the 'Opt-in' section exists in the configuration file
-if 'Opt-in' in config:
-    opt_in_status = config.getboolean('Opt-in', 'Status')
+# Load the configuration file
+if not os.path.exists('Wizard101-Sale-Tracker\config.ini'): #check for if it exists and set default value
+    config['Opt-in'] = {'Status': 'False'}
+    with open('Wizard101-Sale-Tracker\config.ini', 'w') as configfile:
+        config.write(configfile)
 else:
-    # If the section doesn't exist, set a default value
-    opt_in_status = False
+    config.read('Wizard101-Sale-Tracker\config.ini')
+
+# Check if the 'Opt-in' section exists in the configuration file (default to false if it doesn't work)
+if 'Opt-in' in config:
+    opt_in_status = config.getboolean('Opt-in', 'Status', fallback=False)
 
 #gui code copied from internet
 sg.theme("DarkBlue")
@@ -94,7 +96,7 @@ layout = [
     [sg.Text(b_line, enable_events=True, font=font, key=f'-LINK-{index}-')]
     for index, b_line in enumerate(b_array.splitlines(), start=0)
 ] + [
-    [sg.Checkbox('Opt-in for startup launch', key='Opt-in')]
+    [sg.Checkbox('Opt-in for startup launch', opt_in_status, enable_events=True, key='Opt-in-Checkbox', )]
 ]
 driver.close()
 
@@ -106,27 +108,31 @@ while True:
     event, values = window.read()
     startup_folder = os.path.join(os.environ['APPDATA'], 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup') #get the current user's startup folder path
     shortcut_path = os.path.join(startup_folder, "SaleTracker.lnk")
-    if event == sg.WIN_CLOSED: #end program if user closes window
-        break
-    elif event.startswith('-LINK-'):
-        index = int(event.split('-')[2])
-        webbrowser.open(f'https://www.wizard101.com{link_storage[index]}')
-    if values['Opt-in']:
-        script_path = r'C:\Users\13178\Documents\GitHub\personal projects\wizard101 webscraper\main.py' #create a shortcut to your Python script in the startup folder
-        config['Opt-in'] = {'Status': 'True'} #saves to config
-        # Create the shortcut if it doesn't exist
-        if not os.path.exists(shortcut_path):
+    script_path = r'Wizard101-Sale-Tracker\main.py' #create a shortcut to your Python script in the startup folder / make path dynamic
+    if values['Opt-in-Checkbox'] == True :
+        window['Opt-in-Checkbox'].update(True)
+        opt_in_status = True
+        if not os.path.exists(shortcut_path): #create the shortcut if it doesn't exist
             shell = win32com.client.Dispatch("WScript.Shell")
             shortcut = shell.CreateShortCut(shortcut_path)
             shortcut.Targetpath = script_path
             shortcut.WorkingDirectory = os.path.dirname(script_path)
             shortcut.save()
         print("Opted In!")
-    else:
-        # Remove the shortcut if it exists
-        config['Opt-in'] = {'Status': 'False'} #saves to config
-        if os.path.exists(shortcut_path):
+    elif values['Opt-in-Checkbox'] == False :
+        window['Opt-in-Checkbox'].update(False)
+        opt_in_status = False
+        if os.path.exists(shortcut_path): #remove the shortcut if it exists
             os.remove(shortcut_path)
         print("Opted Out!")
+    config.set('Opt-in', 'Status', str(opt_in_status)) #saves to config 
+    with open('Wizard101-Sale-Tracker\config.ini', 'w') as configfile: #save the config explicitly to file
+        config.write(configfile)
+    if event == sg.WIN_CLOSED: #end program if user closes window
+        break
+    elif event.startswith('-LINK-'):
+        index = int(event.split('-')[2])
+        webbrowser.open(f'https://www.wizard101.com{link_storage[index]}')
+    
 
 window.close()
